@@ -32,7 +32,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var activeTouches: [UITouch: SKNode] = [:]
     var pusherTrackingData: [SKNode: (previousPosition: CGPoint, lastUpdateTime: TimeInterval)] = [:]
     
+    // Goal scored overlay
+    var goalOverlay: SKNode?
+    var isShowingGoalOverlay: Bool = false
+    
     override func didMove(to view: SKView) {
+        // Ensure anchor point is at bottom-left
+        anchorPoint = CGPoint(x: 0, y: 0)
+        
         // Set background color
         backgroundColor = .blue
         
@@ -62,6 +69,15 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         for touch in touches {
             let location = touch.location(in: self)
             
+            // If goal overlay is showing, check for continue button tap
+            if isShowingGoalOverlay {
+                let touchedNode = atPoint(location)
+                if touchedNode.name == "continueButton" {
+                    hideGoalOverlay()
+                }
+                return
+            }
+            
             // Check if touch is on player 1 pusher
             if let pusher1 = player1Pusher, pusher1.contains(location), !activeTouches.values.contains(pusher1) {
                 activeTouches[touch] = pusher1
@@ -76,6 +92,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Don't allow pusher movement when goal overlay is showing
+        if isShowingGoalOverlay { return }
+        
         for touch in touches {
             guard let pusher = activeTouches[touch],
                   let trackingData = pusherTrackingData[pusher] else { continue }
@@ -192,6 +211,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         centerLine.strokeColor = .white
         centerLine.lineWidth = 3
         centerLine.alpha = 0.5
+        centerLine.zPosition = 5
         addChild(centerLine)
     }
     
@@ -204,6 +224,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         pusher.strokeColor = .darkGray
         pusher.lineWidth = 2
         pusher.position = CGPoint(x: frame.midX, y: frame.height * 0.75)
+        pusher.zPosition = 10
         
         pusher.physicsBody = SKPhysicsBody(circleOfRadius: pusherRadius)
         pusher.physicsBody?.isDynamic = true
@@ -227,6 +248,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         pusher.strokeColor = .darkGray
         pusher.lineWidth = 2
         pusher.position = CGPoint(x: frame.midX, y: frame.height * 0.25)
+        pusher.zPosition = 10
         
         pusher.physicsBody = SKPhysicsBody(circleOfRadius: pusherRadius)
         pusher.physicsBody?.isDynamic = true
@@ -250,6 +272,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         puckNode.strokeColor = .white
         puckNode.lineWidth = 2
         puckNode.position = CGPoint(x: frame.midX, y: frame.midY)
+        puckNode.zPosition = 10
         
         puckNode.physicsBody = SKPhysicsBody(circleOfRadius: puckRadius)
         puckNode.physicsBody?.isDynamic = true
@@ -274,6 +297,110 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         self.isPaused = gameIsPaused
     }
     
+    // MARK: - Goal Overlay
+    
+    private func showGoalOverlay(scoringPlayer: Int) {
+        // Set flag first
+        isShowingGoalOverlay = true
+        
+        // Stop all physics velocities
+        puck?.physicsBody?.velocity = CGVector.zero
+        player1Pusher?.physicsBody?.velocity = CGVector.zero
+        player2Pusher?.physicsBody?.velocity = CGVector.zero
+        
+        // Create overlay container
+        let overlay = SKNode()
+        overlay.name = "goalOverlay"
+        overlay.zPosition = 1000 // Ensure it's on top of everything
+        
+        // Semi-transparent background
+        let background = SKShapeNode(rect: CGRect(x: 0, y: 0, width: frame.width, height: frame.height))
+        background.fillColor = .black
+        background.alpha = 0.7
+        background.strokeColor = .clear
+        background.zPosition = 1
+        overlay.addChild(background)
+        
+        // Goal scored title
+        let titleLabel = SKLabelNode(text: "GOAL!")
+        titleLabel.fontName = "Helvetica-Bold"
+        titleLabel.fontSize = 80
+        titleLabel.fontColor = .white
+        titleLabel.position = CGPoint(x: frame.midX, y: frame.midY + 150)
+        titleLabel.zPosition = 2
+        overlay.addChild(titleLabel)
+        
+        // Player scored label
+        let playerLabel = SKLabelNode(text: "Player \(scoringPlayer) Scores!")
+        playerLabel.fontName = "Helvetica"
+        playerLabel.fontSize = 40
+        playerLabel.fontColor = .yellow
+        playerLabel.position = CGPoint(x: frame.midX, y: frame.midY + 80)
+        playerLabel.zPosition = 2
+        overlay.addChild(playerLabel)
+        
+        // Score display
+        let scoreLabel = SKLabelNode(text: "Score: \(player1Score) - \(player2Score)")
+        scoreLabel.fontName = "Helvetica-Bold"
+        scoreLabel.fontSize = 50
+        scoreLabel.fontColor = .white
+        scoreLabel.position = CGPoint(x: frame.midX, y: frame.midY + 10)
+        scoreLabel.zPosition = 2
+        overlay.addChild(scoreLabel)
+        
+        // Continue button background
+        let buttonBackground = SKShapeNode(rectOf: CGSize(width: 200, height: 60), cornerRadius: 10)
+        buttonBackground.fillColor = .green
+        buttonBackground.strokeColor = .white
+        buttonBackground.lineWidth = 3
+        buttonBackground.position = CGPoint(x: frame.midX, y: frame.midY - 80)
+        buttonBackground.name = "continueButton"
+        buttonBackground.zPosition = 2
+        overlay.addChild(buttonBackground)
+        
+        // Continue button text
+        let buttonLabel = SKLabelNode(text: "Continue")
+        buttonLabel.fontName = "Helvetica-Bold"
+        buttonLabel.fontSize = 30
+        buttonLabel.fontColor = .white
+        buttonLabel.position = CGPoint(x: frame.midX, y: frame.midY - 90)
+        buttonLabel.name = "continueButton"
+        buttonLabel.zPosition = 3
+        overlay.addChild(buttonLabel)
+        
+        // Add overlay to scene with fade-in animation
+        addChild(overlay)
+        goalOverlay = overlay
+        
+        // Fade in the overlay
+        overlay.alpha = 0
+        overlay.run(SKAction.fadeIn(withDuration: 0.3))
+        
+        // Pause physics simulation
+        physicsWorld.speed = 0
+    }
+    
+    private func hideGoalOverlay() {
+        guard let overlay = goalOverlay else { return }
+        
+        // Fade out and remove overlay
+        overlay.run(SKAction.sequence([
+            SKAction.fadeOut(withDuration: 0.2),
+            SKAction.removeFromParent(),
+            SKAction.run { [weak self] in
+                // Reset game state
+                self?.goalOverlay = nil
+                self?.isShowingGoalOverlay = false
+                
+                // Restore physics
+                self?.physicsWorld.speed = 1.0
+                
+                // Reset game
+                self?.resetGame()
+            }
+        ]))
+    }
+    
     // MARK: - Scoring
     
     private func setupScoreLabels() {
@@ -283,6 +410,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         player1ScoreLabel?.fontSize = 60
         player1ScoreLabel?.fontColor = .white
         player1ScoreLabel?.position = CGPoint(x: frame.midX, y: frame.height - 100)
+        player1ScoreLabel?.zPosition = 15
         if let label = player1ScoreLabel {
             addChild(label)
         }
@@ -293,6 +421,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         player2ScoreLabel?.fontSize = 60
         player2ScoreLabel?.fontColor = .white
         player2ScoreLabel?.position = CGPoint(x: frame.midX, y: 50)
+        player2ScoreLabel?.zPosition = 15
         if let label = player2ScoreLabel {
             addChild(label)
         }
@@ -321,24 +450,27 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let contactMask = contact.bodyA.categoryBitMask | contact.bodyB.categoryBitMask
         
         if contactMask == PhysicsCategory.Puck | PhysicsCategory.Goal {
+            // Don't trigger multiple goals if overlay is already showing
+            if isShowingGoalOverlay { return }
+            
             // Determine which goal was hit
             let goalNode = contact.bodyA.categoryBitMask == PhysicsCategory.Goal ? contact.bodyA.node : contact.bodyB.node
             
+            var scoringPlayer = 0
             if goalNode?.name == "topGoal" {
                 // Player 2 scores (bottom player scores against top goal)
                 player2Score += 1
+                scoringPlayer = 2
             } else if goalNode?.name == "bottomGoal" {
                 // Player 1 scores (top player scores against bottom goal)
                 player1Score += 1
+                scoringPlayer = 1
             }
             
-            // Reset game after a short delay
-            run(SKAction.sequence([
-                SKAction.wait(forDuration: 0.5),
-                SKAction.run { [weak self] in
-                    self?.resetGame()
-                }
-            ]))
+            // Show goal overlay immediately
+            if scoringPlayer > 0 {
+                showGoalOverlay(scoringPlayer: scoringPlayer)
+            }
         }
     }
 }
