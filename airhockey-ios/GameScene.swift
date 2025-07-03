@@ -77,11 +77,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         // Constrain pusher to its half of the screen
         if active == player1Pusher {
-            // Player 1 must stay on left half
-            newPosition.x = min(newPosition.x, frame.midX - 40) // 40 is pusher radius
+            // Player 1 must stay on top half
+            newPosition.y = max(newPosition.y, frame.midY + 40) // 40 is pusher radius
         } else if active == player2Pusher {
-            // Player 2 must stay on right half
-            newPosition.x = max(newPosition.x, frame.midX + 40) // 40 is pusher radius
+            // Player 2 must stay on bottom half
+            newPosition.y = min(newPosition.y, frame.midY - 40) // 40 is pusher radius
         }
         
         // Constrain to screen bounds
@@ -120,34 +120,34 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let goalWidth: CGFloat = 150
         let goalHeight: CGFloat = 10
         
-        // Left goal
-        let leftGoal = SKNode()
-        leftGoal.position = CGPoint(x: goalHeight / 2, y: frame.midY)
-        leftGoal.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: goalHeight, height: goalWidth))
-        leftGoal.physicsBody?.isDynamic = false
-        leftGoal.physicsBody?.categoryBitMask = PhysicsCategory.Goal
-        leftGoal.physicsBody?.contactTestBitMask = PhysicsCategory.Puck
-        leftGoal.physicsBody?.collisionBitMask = PhysicsCategory.None
-        leftGoal.name = "leftGoal"
-        addChild(leftGoal)
+        // Top goal (Player 1's goal)
+        let topGoal = SKNode()
+        topGoal.position = CGPoint(x: frame.midX, y: frame.height - goalHeight / 2)
+        topGoal.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: goalWidth, height: goalHeight))
+        topGoal.physicsBody?.isDynamic = false
+        topGoal.physicsBody?.categoryBitMask = PhysicsCategory.Goal
+        topGoal.physicsBody?.contactTestBitMask = PhysicsCategory.Puck
+        topGoal.physicsBody?.collisionBitMask = PhysicsCategory.None
+        topGoal.name = "topGoal"
+        addChild(topGoal)
         
-        // Right goal
-        let rightGoal = SKNode()
-        rightGoal.position = CGPoint(x: frame.width - goalHeight / 2, y: frame.midY)
-        rightGoal.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: goalHeight, height: goalWidth))
-        rightGoal.physicsBody?.isDynamic = false
-        rightGoal.physicsBody?.categoryBitMask = PhysicsCategory.Goal
-        rightGoal.physicsBody?.contactTestBitMask = PhysicsCategory.Puck
-        rightGoal.physicsBody?.collisionBitMask = PhysicsCategory.None
-        rightGoal.name = "rightGoal"
-        addChild(rightGoal)
+        // Bottom goal (Player 2's goal)
+        let bottomGoal = SKNode()
+        bottomGoal.position = CGPoint(x: frame.midX, y: goalHeight / 2)
+        bottomGoal.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: goalWidth, height: goalHeight))
+        bottomGoal.physicsBody?.isDynamic = false
+        bottomGoal.physicsBody?.categoryBitMask = PhysicsCategory.Goal
+        bottomGoal.physicsBody?.contactTestBitMask = PhysicsCategory.Puck
+        bottomGoal.physicsBody?.collisionBitMask = PhysicsCategory.None
+        bottomGoal.name = "bottomGoal"
+        addChild(bottomGoal)
     }
     
     private func drawCenterLine() {
         let centerLine = SKShapeNode()
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: frame.midX, y: 0))
-        path.addLine(to: CGPoint(x: frame.midX, y: frame.height))
+        path.move(to: CGPoint(x: 0, y: frame.midY))
+        path.addLine(to: CGPoint(x: frame.width, y: frame.midY))
         centerLine.path = path
         centerLine.strokeColor = .white
         centerLine.lineWidth = 3
@@ -163,7 +163,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         pusher.fillColor = .red
         pusher.strokeColor = .darkGray
         pusher.lineWidth = 2
-        pusher.position = CGPoint(x: frame.width * 0.25, y: frame.midY)
+        pusher.position = CGPoint(x: frame.midX, y: frame.height * 0.75)
         
         pusher.physicsBody = SKPhysicsBody(circleOfRadius: pusherRadius)
         pusher.physicsBody?.isDynamic = true
@@ -186,7 +186,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         pusher.fillColor = .green
         pusher.strokeColor = .darkGray
         pusher.lineWidth = 2
-        pusher.position = CGPoint(x: frame.width * 0.75, y: frame.midY)
+        pusher.position = CGPoint(x: frame.midX, y: frame.height * 0.25)
         
         pusher.physicsBody = SKPhysicsBody(circleOfRadius: pusherRadius)
         pusher.physicsBody?.isDynamic = true
@@ -214,10 +214,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         puckNode.physicsBody = SKPhysicsBody(circleOfRadius: puckRadius)
         puckNode.physicsBody?.isDynamic = true
         puckNode.physicsBody?.affectedByGravity = false
-        puckNode.physicsBody?.mass = 0.1
+        puckNode.physicsBody?.mass = 0.05  // Reduced mass for faster movement
         puckNode.physicsBody?.restitution = 1.0
-        puckNode.physicsBody?.friction = 0.0
-        puckNode.physicsBody?.linearDamping = 0.1
+        puckNode.physicsBody?.friction = 0.0  // Already zero friction
+        puckNode.physicsBody?.linearDamping = 0.02  // Reduced from 0.1 to 0.02 for less slowdown
         puckNode.physicsBody?.angularDamping = 0.0
         puckNode.physicsBody?.categoryBitMask = PhysicsCategory.Puck
         puckNode.physicsBody?.collisionBitMask = PhysicsCategory.Pusher | PhysicsCategory.Wall
@@ -237,22 +237,22 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     // MARK: - Scoring
     
     private func setupScoreLabels() {
-        // Player 1 score label
+        // Player 1 score label (top player)
         player1ScoreLabel = SKLabelNode(text: "0")
         player1ScoreLabel?.fontName = "Helvetica-Bold"
         player1ScoreLabel?.fontSize = 60
         player1ScoreLabel?.fontColor = .white
-        player1ScoreLabel?.position = CGPoint(x: frame.width * 0.25, y: frame.height - 100)
+        player1ScoreLabel?.position = CGPoint(x: frame.midX, y: frame.height - 100)
         if let label = player1ScoreLabel {
             addChild(label)
         }
         
-        // Player 2 score label
+        // Player 2 score label (bottom player)
         player2ScoreLabel = SKLabelNode(text: "0")
         player2ScoreLabel?.fontName = "Helvetica-Bold"
         player2ScoreLabel?.fontSize = 60
         player2ScoreLabel?.fontColor = .white
-        player2ScoreLabel?.position = CGPoint(x: frame.width * 0.75, y: frame.height - 100)
+        player2ScoreLabel?.position = CGPoint(x: frame.midX, y: 50)
         if let label = player2ScoreLabel {
             addChild(label)
         }
@@ -269,8 +269,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         puck?.physicsBody?.angularVelocity = 0
         
         // Reset pusher positions
-        player1Pusher?.position = CGPoint(x: frame.width * 0.25, y: frame.midY)
-        player2Pusher?.position = CGPoint(x: frame.width * 0.75, y: frame.midY)
+        player1Pusher?.position = CGPoint(x: frame.midX, y: frame.height * 0.75)
+        player2Pusher?.position = CGPoint(x: frame.midX, y: frame.height * 0.25)
     }
     
     // MARK: - Physics Contact Delegate
@@ -282,11 +282,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             // Determine which goal was hit
             let goalNode = contact.bodyA.categoryBitMask == PhysicsCategory.Goal ? contact.bodyA.node : contact.bodyB.node
             
-            if goalNode?.name == "leftGoal" {
-                // Player 2 scores
+            if goalNode?.name == "topGoal" {
+                // Player 2 scores (bottom player scores against top goal)
                 player2Score += 1
-            } else if goalNode?.name == "rightGoal" {
-                // Player 1 scores
+            } else if goalNode?.name == "bottomGoal" {
+                // Player 1 scores (top player scores against bottom goal)
                 player1Score += 1
             }
             
