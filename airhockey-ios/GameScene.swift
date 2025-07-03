@@ -36,6 +36,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var goalOverlay: SKNode?
     var isShowingGoalOverlay: Bool = false
     
+    // Speed limiting
+    let maxPuckSpeed: CGFloat = 800 // Maximum speed in points per second
+    let maxPusherSpeed: CGFloat = 600 // Maximum pusher speed in points per second
+    
     override func didMove(to view: SKView) {
         // Ensure anchor point is at bottom-left
         anchorPoint = CGPoint(x: 0, y: 0)
@@ -125,9 +129,19 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 let velocity = CGVector(dx: deltaPosition.x / deltaTime,
                                       dy: deltaPosition.y / deltaTime)
                 
+                // Limit pusher velocity before applying
+                let speed = sqrt(velocity.dx * velocity.dx + velocity.dy * velocity.dy)
+                let limitedVelocity: CGVector
+                if speed > maxPusherSpeed {
+                    let scale = maxPusherSpeed / speed
+                    limitedVelocity = CGVector(dx: velocity.dx * scale, dy: velocity.dy * scale)
+                } else {
+                    limitedVelocity = velocity
+                }
+                
                 // Apply both position and velocity to physics body
                 pusher.position = newPosition
-                pusher.physicsBody?.velocity = velocity
+                pusher.physicsBody?.velocity = limitedVelocity
                 
                 // Update tracking data
                 pusherTrackingData[pusher] = (previousPosition: newPosition, lastUpdateTime: currentTime)
@@ -162,7 +176,21 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     
     override func update(_ currentTime: TimeInterval) {
-        // Called before each frame is rendered
+        // Limit puck speed
+        limitPuckSpeed()
+    }
+    
+    private func limitPuckSpeed() {
+        guard let puckBody = puck?.physicsBody else { return }
+        
+        let velocity = puckBody.velocity
+        let speed = sqrt(velocity.dx * velocity.dx + velocity.dy * velocity.dy)
+        
+        if speed > maxPuckSpeed {
+            // Scale velocity to maximum speed
+            let scale = maxPuckSpeed / speed
+            puckBody.velocity = CGVector(dx: velocity.dx * scale, dy: velocity.dy * scale)
+        }
     }
     
     // MARK: - Setup Methods
