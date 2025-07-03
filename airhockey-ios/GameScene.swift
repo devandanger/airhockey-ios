@@ -21,7 +21,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var player1Pusher: SKNode?
     var player2Pusher: SKNode?
     var puck: SKNode?
-    var activePusher: SKNode?
     var gameIsPaused: Bool = false
     
     var player1Score = 0
@@ -29,9 +28,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var player1ScoreLabel: SKLabelNode?
     var player2ScoreLabel: SKLabelNode?
     
-    // For tracking pusher movement and velocity
-    var previousPusherPosition: CGPoint = .zero
-    var lastUpdateTime: TimeInterval = 0
+    // For tracking multiple touches and pusher movements
+    var activeTouches: [UITouch: SKNode] = [:]
+    var pusherTrackingData: [SKNode: (previousPosition: CGPoint, lastUpdateTime: TimeInterval)] = [:]
     
     override func didMove(to view: SKView) {
         // Set background color
@@ -60,76 +59,86 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        
-        // Check if touch is on player 1 pusher
-        if let pusher1 = player1Pusher, pusher1.contains(location) {
-            activePusher = pusher1
-            previousPusherPosition = pusher1.position
-            lastUpdateTime = CACurrentMediaTime()
-        }
-        // Check if touch is on player 2 pusher
-        else if let pusher2 = player2Pusher, pusher2.contains(location) {
-            activePusher = pusher2
-            previousPusherPosition = pusher2.position
-            lastUpdateTime = CACurrentMediaTime()
+        for touch in touches {
+            let location = touch.location(in: self)
+            
+            // Check if touch is on player 1 pusher
+            if let pusher1 = player1Pusher, pusher1.contains(location), !activeTouches.values.contains(pusher1) {
+                activeTouches[touch] = pusher1
+                pusherTrackingData[pusher1] = (previousPosition: pusher1.position, lastUpdateTime: CACurrentMediaTime())
+            }
+            // Check if touch is on player 2 pusher
+            else if let pusher2 = player2Pusher, pusher2.contains(location), !activeTouches.values.contains(pusher2) {
+                activeTouches[touch] = pusher2
+                pusherTrackingData[pusher2] = (previousPosition: pusher2.position, lastUpdateTime: CACurrentMediaTime())
+            }
         }
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first,
-              let active = activePusher else { return }
-        
-        var newPosition = touch.location(in: self)
-        
-        // Constrain pusher to its half of the screen
-        if active == player1Pusher {
-            // Player 1 must stay on top half
-            newPosition.y = max(newPosition.y, frame.midY + 40) // 40 is pusher radius
-        } else if active == player2Pusher {
-            // Player 2 must stay on bottom half
-            newPosition.y = min(newPosition.y, frame.midY - 40) // 40 is pusher radius
-        }
-        
-        // Constrain to screen bounds
-        let pusherRadius: CGFloat = 40
-        newPosition.x = max(pusherRadius, min(newPosition.x, frame.width - pusherRadius))
-        newPosition.y = max(pusherRadius, min(newPosition.y, frame.height - pusherRadius))
-        
-        // Calculate velocity based on position change
-        let currentTime = CACurrentMediaTime()
-        let deltaTime = currentTime - lastUpdateTime
-        
-        if deltaTime > 0 {
-            let deltaPosition = CGPoint(x: newPosition.x - previousPusherPosition.x,
-                                      y: newPosition.y - previousPusherPosition.y)
-            let velocity = CGVector(dx: deltaPosition.x / deltaTime,
-                                  dy: deltaPosition.y / deltaTime)
+        for touch in touches {
+            guard let pusher = activeTouches[touch],
+                  let trackingData = pusherTrackingData[pusher] else { continue }
             
-            // Apply both position and velocity to physics body
-            active.position = newPosition
-            active.physicsBody?.velocity = velocity
+            var newPosition = touch.location(in: self)
             
-            // Update tracking variables
-            previousPusherPosition = newPosition
-            lastUpdateTime = currentTime
-        } else {
-            // Fallback if time delta is too small
-            active.position = newPosition
+            // Constrain pusher to its half of the screen
+            if pusher == player1Pusher {
+                // Player 1 must stay on top half
+                newPosition.y = max(newPosition.y, frame.midY + 40) // 40 is pusher radius
+            } else if pusher == player2Pusher {
+                // Player 2 must stay on bottom half
+                newPosition.y = min(newPosition.y, frame.midY - 40) // 40 is pusher radius
+            }
+            
+            // Constrain to screen bounds
+            let pusherRadius: CGFloat = 40
+            newPosition.x = max(pusherRadius, min(newPosition.x, frame.width - pusherRadius))
+            newPosition.y = max(pusherRadius, min(newPosition.y, frame.height - pusherRadius))
+            
+            // Calculate velocity based on position change
+            let currentTime = CACurrentMediaTime()
+            let deltaTime = currentTime - trackingData.lastUpdateTime
+            
+            if deltaTime > 0 {
+                let deltaPosition = CGPoint(x: newPosition.x - trackingData.previousPosition.x,
+                                          y: newPosition.y - trackingData.previousPosition.y)
+                let velocity = CGVector(dx: deltaPosition.x / deltaTime,
+                                      dy: deltaPosition.y / deltaTime)
+                
+                // Apply both position and velocity to physics body
+                pusher.position = newPosition
+                pusher.physicsBody?.velocity = velocity
+                
+                // Update tracking data
+                pusherTrackingData[pusher] = (previousPosition: newPosition, lastUpdateTime: currentTime)
+            } else {
+                // Fallback if time delta is too small
+                pusher.position = newPosition
+            }
         }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Stop pusher movement when touch ends
-        activePusher?.physicsBody?.velocity = CGVector.zero
-        activePusher = nil
+        for touch in touches {
+            if let pusher = activeTouches[touch] {
+                // Stop pusher movement when touch ends
+                pusher.physicsBody?.velocity = CGVector.zero
+                activeTouches.removeValue(forKey: touch)
+                pusherTrackingData.removeValue(forKey: pusher)
+            }
+        }
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Stop pusher movement when touch is cancelled
-        activePusher?.physicsBody?.velocity = CGVector.zero
-        activePusher = nil
+        for touch in touches {
+            if let pusher = activeTouches[touch] {
+                // Stop pusher movement when touch is cancelled
+                pusher.physicsBody?.velocity = CGVector.zero
+                activeTouches.removeValue(forKey: touch)
+                pusherTrackingData.removeValue(forKey: pusher)
+            }
+        }
     }
     
     

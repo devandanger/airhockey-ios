@@ -27,6 +27,9 @@ class GameViewController: UIViewController {
             view.showsFPS = true
             view.showsNodeCount = true
             
+            // Enable multi-touch
+            view.isMultipleTouchEnabled = true
+            
             // Add three-finger tap gesture recognizer
             let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
             tapGesture.numberOfTouchesRequired = 3
