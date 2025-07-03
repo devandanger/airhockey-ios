@@ -29,6 +29,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var player1ScoreLabel: SKLabelNode?
     var player2ScoreLabel: SKLabelNode?
     
+    // For tracking pusher movement and velocity
+    var previousPusherPosition: CGPoint = .zero
+    var lastUpdateTime: TimeInterval = 0
+    
     override func didMove(to view: SKView) {
         // Set background color
         backgroundColor = .blue
@@ -62,10 +66,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         // Check if touch is on player 1 pusher
         if let pusher1 = player1Pusher, pusher1.contains(location) {
             activePusher = pusher1
+            previousPusherPosition = pusher1.position
+            lastUpdateTime = CACurrentMediaTime()
         }
         // Check if touch is on player 2 pusher
         else if let pusher2 = player2Pusher, pusher2.contains(location) {
             activePusher = pusher2
+            previousPusherPosition = pusher2.position
+            lastUpdateTime = CACurrentMediaTime()
         }
     }
     
@@ -89,15 +97,38 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         newPosition.x = max(pusherRadius, min(newPosition.x, frame.width - pusherRadius))
         newPosition.y = max(pusherRadius, min(newPosition.y, frame.height - pusherRadius))
         
-        // Update pusher position
-        active.position = newPosition
+        // Calculate velocity based on position change
+        let currentTime = CACurrentMediaTime()
+        let deltaTime = currentTime - lastUpdateTime
+        
+        if deltaTime > 0 {
+            let deltaPosition = CGPoint(x: newPosition.x - previousPusherPosition.x,
+                                      y: newPosition.y - previousPusherPosition.y)
+            let velocity = CGVector(dx: deltaPosition.x / deltaTime,
+                                  dy: deltaPosition.y / deltaTime)
+            
+            // Apply both position and velocity to physics body
+            active.position = newPosition
+            active.physicsBody?.velocity = velocity
+            
+            // Update tracking variables
+            previousPusherPosition = newPosition
+            lastUpdateTime = currentTime
+        } else {
+            // Fallback if time delta is too small
+            active.position = newPosition
+        }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Stop pusher movement when touch ends
+        activePusher?.physicsBody?.velocity = CGVector.zero
         activePusher = nil
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Stop pusher movement when touch is cancelled
+        activePusher?.physicsBody?.velocity = CGVector.zero
         activePusher = nil
     }
     
@@ -168,10 +199,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         pusher.physicsBody = SKPhysicsBody(circleOfRadius: pusherRadius)
         pusher.physicsBody?.isDynamic = true
         pusher.physicsBody?.affectedByGravity = false
-        pusher.physicsBody?.mass = 0.5
-        pusher.physicsBody?.restitution = 0.1
-        pusher.physicsBody?.friction = 0.1
-        pusher.physicsBody?.linearDamping = 0.5
+        pusher.physicsBody?.mass = 1.0  // Increased mass for more momentum transfer
+        pusher.physicsBody?.restitution = 0.3  // Slightly more bouncy
+        pusher.physicsBody?.friction = 0.2  // Slight friction for control
+        pusher.physicsBody?.linearDamping = 0.8  // Higher damping to stop quickly when not moving
         pusher.physicsBody?.categoryBitMask = PhysicsCategory.Pusher
         pusher.physicsBody?.collisionBitMask = PhysicsCategory.Puck
         pusher.physicsBody?.contactTestBitMask = PhysicsCategory.None
@@ -191,10 +222,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         pusher.physicsBody = SKPhysicsBody(circleOfRadius: pusherRadius)
         pusher.physicsBody?.isDynamic = true
         pusher.physicsBody?.affectedByGravity = false
-        pusher.physicsBody?.mass = 0.5
-        pusher.physicsBody?.restitution = 0.1
-        pusher.physicsBody?.friction = 0.1
-        pusher.physicsBody?.linearDamping = 0.5
+        pusher.physicsBody?.mass = 1.0  // Increased mass for more momentum transfer
+        pusher.physicsBody?.restitution = 0.3  // Slightly more bouncy
+        pusher.physicsBody?.friction = 0.2  // Slight friction for control
+        pusher.physicsBody?.linearDamping = 0.8  // Higher damping to stop quickly when not moving
         pusher.physicsBody?.categoryBitMask = PhysicsCategory.Pusher
         pusher.physicsBody?.collisionBitMask = PhysicsCategory.Puck
         pusher.physicsBody?.contactTestBitMask = PhysicsCategory.None
@@ -268,9 +299,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         puck?.physicsBody?.velocity = CGVector.zero
         puck?.physicsBody?.angularVelocity = 0
         
-        // Reset pusher positions
+        // Reset pusher positions and velocities
         player1Pusher?.position = CGPoint(x: frame.midX, y: frame.height * 0.75)
+        player1Pusher?.physicsBody?.velocity = CGVector.zero
         player2Pusher?.position = CGPoint(x: frame.midX, y: frame.height * 0.25)
+        player2Pusher?.physicsBody?.velocity = CGVector.zero
     }
     
     // MARK: - Physics Contact Delegate
